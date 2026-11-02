@@ -1,0 +1,12 @@
+{
+  "name": "aurabro-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A private texting-assistant web app with screenshot and chat analysis",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
