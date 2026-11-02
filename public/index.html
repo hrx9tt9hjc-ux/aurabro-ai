@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10111b">
+  <title>AuraBro AI</title>
+  <style>
+    :root { color-scheme: dark; --bg:#10111b; --panel:#1a1c2b; --line:#303349; --muted:#a5a8bd; --accent:#9b8cff; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; background:radial-gradient(circle at top,#28234a 0,#10111b 42%); color:#f5f4ff; font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { width:min(760px,100%); margin:0 auto; padding:28px 18px 48px; }
+    header { display:flex; align-items:center; gap:12px; margin-bottom:24px; }
+    .logo { width:46px;height:46px;border-radius:15px;background:linear-gradient(135deg,#9b8cff,#5c4bc7);display:grid;place-items:center;font-size:24px; }
+    h1 { margin:0;font-size:25px; } .sub { color:var(--muted);font-size:13px;margin-top:3px; }
+    .panel { background:rgba(26,28,43,.94);border:1px solid var(--line);border-radius:20px;padding:20px;margin:14px 0;box-shadow:0 14px 40px #0003; }
+    label { display:block;font-weight:650;margin:14px 0 8px; }
+    textarea,select,input[type=file] { width:100%;border:1px solid var(--line);border-radius:12px;background:#111321;color:#f5f4ff;padding:12px;font:inherit; }
+    textarea { min-height:90px;resize:vertical; }
+    select { min-height:46px; }
+    .hint { color:var(--muted);font-size:12px;margin-top:7px; }
+    button { width:100%;border:0;border-radius:13px;padding:15px;background:linear-gradient(100deg,#9b8cff,#7664ed);color:white;font-weight:750;font-size:16px;margin-top:18px;cursor:pointer; }
+    button:disabled { opacity:.55;cursor:wait; }
+    #result { white-space:pre-wrap;line-height:1.6; }
+    .error { color:#ffaaaa; }
+    .preview { max-width:100%;max-height:260px;display:none;border-radius:12px;margin-top:10px; }
+    footer { color:var(--muted);font-size:12px;line-height:1.5;text-align:center;margin-top:22px; }
+  </style>
+</head>
+<body>
+<main>
+  <header><div class="logo">✦</div><div><h1>AuraBro AI</h1><div class="sub">Dein Assistent für Nachrichten</div></div></header>
+  <section class="panel">
+    <label for="style">Schreibstil</label>
+    <select id="style">
+      <option>Alle Stile</option><option>Frech und selbstbewusst</option><option>Flirty und charmant</option>
+      <option>Lustig und humorvoll</option><option>Cool und gelassen</option><option>Liebevoll und süß</option><option>Ernst und respektvoll</option>
+    </select>
+    <label for="goal">Was möchtest du erreichen?</label>
+    <select id="goal">
+      <option>Eine gute Antwort finden</option><option>Das Gespräch am Laufen halten</option>
+      <option>Interesse zeigen</option><option>Selbstbewusst wirken</option><option>Missverständnis klären</option>
+    </select>
+    <label for="message">Nachricht oder zusätzliche Infos</label>
+    <textarea id="message" placeholder="Was hat die Person geschrieben?"></textarea>
+    <label for="history">Bisheriger Chatverlauf (optional)</label>
+    <textarea id="history" placeholder="Füge den bisherigen Verlauf ein, wenn er wichtig ist."></textarea>
+    <label for="image">Screenshot hochladen (optional)</label>
+    <input id="image" type="file" accept="image/*">
+    <img id="preview" class="preview" alt="Screenshot-Vorschau">
+    <div class="hint">Lade nur Chats hoch, die du teilen darfst. Namen und private Daten kannst du vorher schwärzen.</div>
+    <button id="send">✦ Antworten generieren</button>
+  </section>
+  <section class="panel" id="outputPanel" hidden>
+    <strong>Deine Antwortvorschläge</strong>
+    <p id="result"></p>
+  </section>
+  <footer>Deine Eingaben werden zur Bearbeitung an den eingerichteten KI-Dienst gesendet. Teile keine Passwörter, Adressen oder anderen sensiblen Daten.</footer>
+</main>
+<script>
+  const fileInput = document.getElementById("image");
+  const preview = document.getElementById("preview");
+  let imageData = "";
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files[0];
+    imageData = "";
+    if (!file) { preview.style.display = "none"; return; }
+    if (!file.type.startsWith("image/")) { alert("Bitte eine Bilddatei auswählen."); fileInput.value = ""; return; }
+    if (file.size > 5 * 1024 * 1024) { alert("Bitte ein Bild unter 5 MB auswählen."); fileInput.value = ""; return; }
+    const reader = new FileReader();
+    reader.onload = () => { imageData = reader.result; preview.src = imageData; preview.style.display = "block"; };
+    reader.readAsDataURL(file);
+  });
+
+  document.getElementById("send").addEventListener("click", async () => {
+    const button = document.getElementById("send");
+    const outputPanel = document.getElementById("outputPanel");
+    const result = document.getElementById("result");
+    const message = document.getElementById("message").value;
+    if (!message.trim() && !imageData) { alert("Bitte Nachricht eingeben oder Screenshot hochladen."); return; }
+    button.disabled = true; button.textContent = "Analysiere …"; result.textContent = ""; result.className = "";
+    outputPanel.hidden = false;
+    try {
+      const response = await fetch("/api/reply", {
+        method: "POST", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          message, history: document.getElementById("history").value,
+          style: document.getElementById("style").value,
+          goal: document.getElementById("goal").value, image: imageData
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Die Anfrage ist fehlgeschlagen.");
+      result.textContent = data.answer;
+    } catch (error) {
+      result.textContent = error.message;
+      result.className = "error";
+    } finally {
+      button.disabled = false; button.textContent = "✦ Antworten generieren";
+    }
+  });
+</script>
+</body>
+</html>
